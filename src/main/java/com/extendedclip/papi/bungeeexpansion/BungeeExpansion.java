@@ -5,6 +5,7 @@ import com.google.common.collect.Iterables;
 import com.google.common.io.ByteArrayDataInput;
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
+import io.papermc.paper.threadedregions.scheduler.ScheduledTask;
 import me.clip.placeholderapi.expansion.Configurable;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import me.clip.placeholderapi.expansion.Taskable;
@@ -12,9 +13,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.OfflinePlayer;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.messaging.PluginMessageListener;
-import org.bukkit.scheduler.BukkitTask;
 
-import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.lang.reflect.Field;
 import java.util.Collections;
@@ -34,8 +33,8 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
     private static final Splitter SPLITTER = Splitter.on(",").trimResults();
 
 
-    private final Map<String, Integer>        counts = new HashMap<>();
-    private final AtomicReference<BukkitTask> cached = new AtomicReference<>();
+    private final Map<String, Integer> counts = new HashMap<>();
+    private final AtomicReference<ScheduledTask> cached = new AtomicReference<>();
 
     private static Field inputField;
 
@@ -79,7 +78,7 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
                 value = counts.values().stream().mapToInt(Integer::intValue).sum();
                 break;
             default:
-                value = counts.getOrDefault(identifier.toLowerCase(), 0);
+                value = counts.getOrDefault(identifier.toLowerCase(), 9999);
                 break;
         }
 
@@ -88,7 +87,7 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
 
     @Override
     public void start() {
-        final BukkitTask task = Bukkit.getScheduler().runTaskTimer(getPlaceholderAPI(), () -> {
+        final ScheduledTask task = Bukkit.getGlobalRegionScheduler().runAtFixedRate(getPlaceholderAPI(), scheduledTask -> {
 
             if (counts.isEmpty()) {
                 sendServersChannelMessage();
@@ -100,7 +99,7 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
         }, 20L * 2L, 20L * getLong(CONFIG_INTERVAL, 30));
 
 
-        final BukkitTask prev = cached.getAndSet(task);
+        final ScheduledTask prev = cached.getAndSet(task);
         if (prev != null) {
             prev.cancel();
         } else {
@@ -111,7 +110,7 @@ public final class BungeeExpansion extends PlaceholderExpansion implements Plugi
 
     @Override
     public void stop() {
-        final BukkitTask prev = cached.getAndSet(null);
+        final ScheduledTask prev = cached.getAndSet(null);
         if (prev == null) {
             return;
         }
